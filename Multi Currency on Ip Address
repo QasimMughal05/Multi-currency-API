@@ -1,0 +1,88 @@
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    // Truncate long tour titles
+    document.querySelectorAll('.tour-head').forEach(function (el) {
+      let text = el.textContent.trim();
+      if (text.length > 62) {
+        el.textContent = text.substring(0, 62).trim() + '...';
+      }
+    });
+
+    const currencySymbols = {
+      ISK: 'ISK',
+      USD: '$',
+      EUR: '€',
+      GBP: '£'
+    };
+
+    const euCountries = [
+      'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI',
+      'FR', 'DE', 'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU',
+      'MT', 'NL', 'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE'
+    ];
+
+    let exchangeRates = {};
+
+    async function fetchExchangeRates() {
+      try {
+        const res = await fetch('https://api.frankfurter.app/latest?from=ISK&to=USD,EUR,GBP');
+        const data = await res.json();
+        exchangeRates = {
+          ISK: 1,
+          USD: data.rates.USD,
+          EUR: data.rates.EUR,
+          GBP: data.rates.GBP
+        };
+      } catch (error) {
+        console.error('Exchange rate fetch failed:', error);
+        exchangeRates = { ISK: 1, USD: 0.0073, EUR: 0.0067, GBP: 0.0058 }; // fallback
+      }
+    }
+
+    async function getCurrencyByIP() {
+      try {
+        const res = await fetch('https://ipapi.co/json/');
+        const data = await res.json();
+        const country = data.country_code;
+
+        if (country === 'IS') return 'ISK';
+        if (country === 'GB') return 'GBP';
+        if (euCountries.includes(country)) return 'EUR';
+        return 'USD'; // fallback
+      } catch (err) {
+        console.warn('Geo IP lookup failed. Using USD as fallback.');
+        return 'USD';
+      }
+    }
+
+    function updatePrices(currency) {
+      document.querySelectorAll('.price').forEach(el => {
+        const isk = parseFloat(el.getAttribute('data-isk'));
+        if (isNaN(isk)) return;
+
+        const converted = isk * (exchangeRates[currency] || 1);
+        const formatted = currency === 'ISK'
+          ? `${currencySymbols[currency]} ${isk.toLocaleString()}`
+          : `${currencySymbols[currency]} ${converted.toFixed(2)}`;
+
+        el.textContent = formatted;
+      });
+    }
+
+    async function init() {
+      await fetchExchangeRates();
+      const userCurrency = await getCurrencyByIP();
+      updatePrices(userCurrency);
+
+      const selector = document.getElementById('currencySelector');
+      if (selector) {
+        selector.value = userCurrency;
+        selector.addEventListener('change', function () {
+          updatePrices(this.value);
+        });
+      }
+    }
+
+    init();
+  });
+</script>
